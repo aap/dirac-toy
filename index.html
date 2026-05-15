@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.10/p5.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+
+      /* WEBGL canvas: top-left, width = 100% - PANEL_W, height = 100% - CTRL_H */
+      body > canvas {
+        display: block;
+        position: absolute;
+        top: 0; left: 0;
+      }
+
+      /* Lorentz strip: bottom-left, same width as WEBGL canvas */
+      #ui-host {
+        position: absolute;
+        bottom: 0; left: 0;
+        pointer-events: none;
+      }
+      #ui-host canvas { display: block; pointer-events: all; }
+
+      /* Spinor panel: right side, full height, plain HTML */
+      #spinor-col {
+        position: absolute;
+        top: 0; right: 0;
+        width: 280px;
+        height: 100%;
+        background: #0e0e0e;
+        border-left: 1px solid #222;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+
+      /* Component knob canvas inside panel */
+      #comp-host canvas { display: block; }
+
+      /* Text inputs */
+      #psi-readout {
+        padding: 8px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        border-bottom: 1px solid #222;
+      }
+      #psi-readout .psi-row {
+        display: flex; align-items: center; gap: 6px;
+      }
+      #psi-readout label {
+        color: #999; min-width: 24px;
+        font-family: ui-monospace,"SF Mono",Menlo,monospace;
+        font-size: 13px; font-weight: bold;
+      }
+      #psi-readout input[type=text] {
+        flex: 1;
+        background: #1c1c1c; border: 1px solid #444; border-radius: 4px;
+        color: #eee;
+        font-family: ui-monospace,"SF Mono",Menlo,monospace;
+        font-size: 13px; padding: 5px 7px;
+      }
+      #psi-readout input[type=text]:focus {
+        border-color: #888; outline: none; background: #242424; color: #fff;
+      }
+      #psi-readout input.parse-error { border-color: #c44; color: #f88; }
+      #psi_norm {
+        color: #666; font-size: 11px;
+        font-family: ui-monospace,"SF Mono",Menlo,monospace;
+      }
+
+      /* Button canvas inside panel */
+      #btn-host canvas { display: block; }
+
+      #spinor { display: none; }
+      #info   { display: none; }
+    </style>
+  </head>
+  <body>
+    <!-- Lorentz strip (p5 appends WEBGL canvas to body, this goes on top) -->
+    <div id="ui-host"></div>
+
+    <!-- Spinor panel -->
+    <div id="spinor-col">
+      <div id="psi-readout">
+        <div class="psi-row"><label>L↑</label><input type="text" id="cpx_Lu" placeholder="0+0i"></div>
+        <div class="psi-row"><label>L↓</label><input type="text" id="cpx_Ld" placeholder="0+0i"></div>
+        <div class="psi-row"><label>R↑</label><input type="text" id="cpx_Ru" placeholder="0+0i"></div>
+        <div class="psi-row"><label>R↓</label><input type="text" id="cpx_Rd" placeholder="0+0i"></div>
+        <div id="psi_norm"></div>
+      </div>
+      <div id="comp-host"></div>
+      <div id="btn-host"></div>
+    </div>
+
+    <pre id="info"></pre>
+    <pre id="spinor"></pre>
+
+    <script src="cpx.js"></script>
+    <script src="quat.js"></script>
+    <script src="dquat.js"></script>
+    <script src="sketch.js"></script>
+    <script>
+    (function(){
+      // CTRL_H and PANEL_W are globals from sketch.js
+
+      // ── Widget classes ────────────────────────────────────────────────────
+
+      class Knob {
+        constructor(cx,cy,r,label,color,fmt,onDelta){
+          this.cx=cx;this.cy=cy;this.r=r;
+          this.label=label;this.color=color;this.fmt=fmt;this.onDelta=onDelta;
+          this.total=0;this.dragging=false;
+          this.startAngle=0;this.lastAngle=0;this.dragDelta=0;
+        }
+        contains(x,y){const dx=x-this.cx,dy=y-this.cy;return dx*dx+dy*dy<=this.r*this.r;}
+        pointerDown(x,y){
+          this.dragging=true;
+          this.startAngle=Math.atan2(y-this.cy,x-this.cx);
+          this.lastAngle=this.startAngle;this.dragDelta=0;
+        }
+        pointerMove(x,y){
+          if(!this.dragging)return;
+          const a=Math.atan2(y-this.cy,x-this.cx);
+          let d=a-this.lastAngle;
+          while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;
+          this.lastAngle=a;this.dragDelta+=d;this.total+=d;
+          if(this.onDelta)this.onDelta(d);
+        }
+        pointerUp(){this.dragging=false;this.dragDelta=0;}
+        doubleClick(){const d=-this.total;this.total=0;if(this.onDelta)this.onDelta(d);}
+        draw(p){
+          p.push();p.translate(this.cx,this.cy);
+          const[r,g,b]=this.color;
+          p.noStroke();p.fill(r,g,b,45);p.circle(0,0,this.r*2);
+          p.noFill();p.stroke(r,g,b,this.dragging?255:200);
+          p.strokeWeight(this.dragging?2.5:1.5);p.circle(0,0,this.r*2);
+          p.noStroke();p.fill(r,g,b,80);p.circle(0,0,14);
+          if(!this.dragging){p.stroke(r,g,b,220);p.strokeWeight(2.5);p.line(0,-this.r*0.72,0,-this.r+2);}
+          if(this.dragging){
+            const arcR=this.r*0.78,d=this.dragDelta,absD=Math.abs(d);
+            const wrapped=absD%(4*Math.PI),untracing=wrapped>2*Math.PI;
+            const extent=untracing?(4*Math.PI-wrapped):wrapped;
+            const dir=Math.sign(d)||1;
+            const arcStart=untracing?this.startAngle+dir*2*Math.PI:this.startAngle;
+            const notchAng=arcStart+dir*(untracing?-extent:extent);
+            p.push();p.noFill();p.stroke(r,g,b,255);p.strokeWeight(2.5);p.strokeCap(p.ROUND);
+            const steps=Math.max(8,Math.floor(extent*18));
+            p.beginShape();
+            for(let i=0;i<=steps;i++){const t=i/steps;const ang=arcStart+dir*(untracing?-(t*extent):t*extent);p.vertex(Math.cos(ang)*arcR,Math.sin(ang)*arcR);}
+            p.endShape();p.pop();
+            p.stroke(r,g,b,255);p.strokeWeight(2.5);
+            p.line(0,0,Math.cos(notchAng)*arcR,Math.sin(notchAng)*arcR);
+          }
+          // sector state display: if getValue is set, draw filled sector for current phase
+          if(this.getValue){
+            const c=this.getValue();
+            const ydir=window._phaseYDir||-1;
+            // signed arg in (-π,π]: negative → sweep CW, positive → sweep CCW
+            const rawArg=Math.atan2(ydir*c.i,c.r);
+            const amp=Math.sqrt(c.r*c.r+c.i*c.i);
+            const arcR=this.r*0.72*amp;
+            // extent = 2*|arg|: 0→empty, π/2→half, π→full circle
+            const extent=2*Math.abs(rawArg);
+            const dir=Math.sign(rawArg)||1;  // +1 CCW, -1 CW
+            const start=-Math.PI/2;
+            if(extent>0.01){
+              const end=start+dir*extent;
+              const arcStart=dir>0?start:end;
+              const arcEnd=dir>0?end:start;
+              p.push();
+              p.noStroke();p.fill(r,g,b,55);
+              p.arc(0,0,arcR*2,arcR*2,arcStart,arcEnd,p.PIE);
+              p.pop();
+              p.stroke(r,g,b,200);p.strokeWeight(2);
+              p.line(0,0,Math.cos(end)*arcR,Math.sin(end)*arcR);
+            }
+            // reference dot at 12 o'clock (the zero/start point)
+            p.noStroke();p.fill(r,g,b,100);p.circle(arcR*Math.cos(start),arcR*Math.sin(start),5);
+          }
+          p.noStroke();p.textAlign(p.CENTER,p.TOP);
+          if(this.label){p.fill(220);p.textSize(18);p.text(this.label,0,this.r+6);}
+          if(this.fmt){p.fill(r,g,b);p.textSize(16);p.text(this.fmt(this.total),0,this.r+(this.label?32:8));}
+          p.pop();
+        }
+      }
+
+      class Slider {
+        constructor(cx,cy,w,h,label,color,scale,fmt,onDelta){
+          this.cx=cx;this.cy=cy;this.w=w;this.h=h;
+          this.label=label;this.color=color;this.scale=scale;this.fmt=fmt;this.onDelta=onDelta;
+          this.dragging=false;this.startX=0;this.dragX=0;this.lastX=0;this.alwaysVal=false;
+        }
+        contains(x,y){return Math.abs(x-this.cx)<=this.w/2+10&&Math.abs(y-this.cy)<=this.h/2+10;}
+        pointerDown(x,y){this.dragging=true;this.startX=x;this.dragX=0;this.lastX=x;}
+        pointerMove(x,y){
+          if(!this.dragging)return;
+          const d=(x-this.lastX)*this.scale;this.lastX=x;this.dragX=x-this.startX;
+          if(this.onDelta)this.onDelta(d);
+        }
+        pointerUp(){this.dragging=false;this.dragX=0;}
+        doubleClick(){}
+        draw(p){
+          const hw=this.w/2,th=this.h/2;
+          const tx=this.dragging?Math.max(-hw,Math.min(hw,this.dragX)):0;
+          p.push();p.translate(this.cx,this.cy);
+          p.noFill();p.stroke(255,255,255,35);p.strokeWeight(1);p.rect(-hw,-th,this.w,this.h,4);
+          p.noStroke();p.fill(this.color[0],this.color[1],this.color[2],55);
+          if(tx>0)p.rect(0,-th,tx,this.h);else if(tx<0)p.rect(tx,-th,-tx,this.h);
+          p.stroke(255,255,255,70);p.strokeWeight(1);p.line(0,-th,0,th);
+          p.noStroke();p.fill(this.color[0],this.color[1],this.color[2],this.dragging?240:140);
+          p.circle(tx,0,this.h*1.5);
+          p.noStroke();p.fill(200);p.textAlign(p.CENTER,p.BOTTOM);
+          p.textSize(18); p.text(this.label,0,-th-10);
+          if(this.fmt){p.fill(this.color[0],this.color[1],this.color[2]);p.textAlign(p.CENTER,p.TOP);
+          p.textSize(18); p.text(this.alwaysVal?this.fmt():(this.dragging?this.fmt(this.dragX*this.scale):'—'),0,th+8);}
+          p.pop();
+        }
+      }
+
+      class Button {
+        constructor(x,y,w,h,label,onClick,opts={}){
+          this.x=x;this.y=y;this.w=w;this.h=h;
+          this.label=label;this.onClick=onClick;
+          this.color=opts.color||[220,220,220];this.flash=0;this.active=opts.active||false;
+        }
+        contains(x,y){return x>=this.x&&x<=this.x+this.w&&y>=this.y&&y<=this.y+this.h;}
+        pointerDown(){this.flash=1;if(this.onClick)this.onClick(this);}
+        pointerMove(){}pointerUp(){}doubleClick(){}
+        draw(p){
+          p.push();
+          const hov=this.contains(p.mouseX,p.mouseY);
+          const fa=this.active?70:(hov?35:18);
+          p.noStroke();p.fill(this.color[0],this.color[1],this.color[2],fa+this.flash*60);
+          p.rect(this.x,this.y,this.w,this.h,4);
+          p.noFill();p.stroke(this.color[0],this.color[1],this.color[2],this.active?230:120);
+          p.strokeWeight(0.5);p.rect(this.x,this.y,this.w,this.h,4);
+          p.noStroke();p.fill(255);p.textAlign(p.CENTER,p.CENTER);
+          p.textSize(16); p.text(this.label,this.x+this.w/2,this.y+this.h/2+1);
+          if(this.flash>0)this.flash*=0.82;
+          p.pop();
+        }
+      }
+
+      // ── Colours ───────────────────────────────────────────────────────────
+      const COL1=[255,50,80],COL2=[50,220,80],COL3=[60,160,255];
+      window._axisColors=[COL1,COL2,COL3];
+      const compColors=[[255,160,60],[255,100,30],[60,180,255],[30,130,220]];
+      const fmtDeg=v=>`${(v*180/Math.PI).toFixed(0)}°`;
+      const fmtRap=v=>(v>=0?'+':'')+v.toFixed(2);
+
+      // ── Component helpers ─────────────────────────────────────────────────
+      // up(q)=w−zi, down(q)=y−xi
+      function getComp(psi,i){
+        const q=i<2?psi[0]:psi[1];
+        return i%2===0?{r:q.w,i:-q.z}:{r:q.y,i:-q.x};
+      }
+      function setComp(psi,i,c){
+        const L=Object.assign({},psi[0]),R=Object.assign({},psi[1]);
+        if(i===0){L.w=c.r;L.z=-c.i;}
+        else if(i===1){L.y=c.r;L.x=-c.i;}
+        else if(i===2){R.w=c.r;R.z=-c.i;}
+        else{R.y=c.r;R.x=-c.i;}
+        return[quat(L.w,L.x,L.y,L.z),quat(R.w,R.x,R.y,R.z)];
+      }
+
+      // ── Shared dispatch ───────────────────────────────────────────────────
+      function makeDispatch(getEls){
+        let active=null,lastEl=null,lastTime=0;
+        return{
+          press(x,y,t){
+            const els=getEls();
+            for(let i=els.length-1;i>=0;i--){
+              if(els[i].contains(x,y)){
+                active=els[i];active.pointerDown(x,y);window._uiActive=true;
+                if(lastEl===active&&t-lastTime<350)active.doubleClick?.();
+                lastTime=t;lastEl=active;if(window.wake)wake();return false;
+              }
+            }
+          },
+          move(x,y){if(active){active.pointerMove(x,y);if(window.wake)wake();}return false;},
+          release(){if(active){active.pointerUp();active=null;}window._uiActive=false;return false;},
+        };
+      }
+
+      // ══════════════════════════════════════════════════════════════════════
+      // ── Lorentz controls (bottom strip, same width as WEBGL canvas) ───────
+      // ══════════════════════════════════════════════════════════════════════
+      let lorentzEls=[];
+      let mode=0,modeBtn;  // 0=ℝ 1=ℑ 2=L 3=R
+      const modeLabels=['ℝ','ℑ','L','R'];
+      const imgMode=()=>mode===1;
+
+      function buildLorentz(cW,cH){
+        lorentzEls=[];
+
+        // Split cH into two zones: top 55% for knobs, bottom 45% for sliders.
+        // Each zone has its own internal padding so nothing touches an edge.
+        const knobZoneH = Math.floor(cH * 0.55);
+        const sliderZoneH = cH - knobZoneH;
+
+        // --- Slider zone ---
+        const sh = 30;
+        const sy = knobZoneH + Math.floor(sliderZoneH * 0.42);
+
+        // --- Knob zone ---
+        // kr: largest that fits with comfortable margin inside the zone,
+        // and doesn't crowd horizontally across 6 knobs.
+        const nK = 6;
+        const kr = Math.min(
+          Math.floor(knobZoneH * 0.34),   // leaves room for label+value below + top margin
+          Math.floor(cW / nK / 2 - 8)     // horizontal fit
+        );
+        // Centre knob circle in its zone (labels hang below, so bias upward slightly)
+        const cy = Math.floor(knobZoneH * 0.42);
+
+        // knob labels: prefix 'i' when imgMode for the Lorentz generators
+        const rLabels=()=>[
+          ['γ₂₃',     'γ₃₁',     'γ₁₂',     'i',  'γ₀₁₂₃','↕'],
+          ['iγ₁₀',    'iγ₂₀',    'iγ₃₀',    'i',  'γ₀₁₂₃','↕'],
+          ['γ₂₃-iγ₁₀','γ₃₁-iγ₂₀','γ₁₂-iγ₃₀','|ρ₃','|ρ₁',  '|ρ₂'],
+          ['γ₂₃+iγ₁₀','γ₃₁+iγ₂₀','γ₁₂+iγ₃₀','|ρ₃','|ρ₁',  '|ρ₂'],
+        ][mode];
+
+        // Knob horizontal layout: equal spacing across full width
+        const kpad = kr + 16, kspan = cW - 2*kpad, kstep = kspan / (nK - 1);
+
+        const spinFn = (ax) => (d) => { const f=[spin3,spin3X,spin3LX,spin3RX][mode]; ψ=mkid(f(-d,ax,ψ(-1))); };
+        const localRFn = (ax) => (d) => {
+          const psi=ψ(-1);
+          if(mode===2) ψ=mkid([qspin3R(-d,psi[0],ax), psi[1]]);
+          else         ψ=mkid([psi[0], qspin3R(-d,psi[1],ax)]);
+        };
+        const knobDefs=[
+          {color:COL1,          fn:spinFn(ρ1)},
+          {color:COL2,          fn:spinFn(ρ2)},
+          {color:COL3,          fn:spinFn(ρ3)},
+          {color:[220,220,50],  fn:(d)=>{if(mode<2)ψ=mkid(spinPhase(d,ψ(-1)));  else localRFn(ρ3)(d);}},
+          {color:[50,220,220],  fn:(d)=>{if(mode<2)ψ=mkid(spinAxis(d,ψ(-1)));   else localRFn(ρ1)(d);}},
+          {color:[220,50,220],  fn:(d)=>{if(mode<2)ψ=mkid(spin3R(-d,ψ(-1),ρ2)); else localRFn(ρ2)(d);}},
+        ];
+        let knobs=[];
+        knobDefs.forEach(({color,fn},i)=>{
+          const k=new Knob(kpad+i*kstep,cy,kr,'',color,null,fn);
+          k._labelFn=()=>rLabels()[i];
+          knobs.push(k);lorentzEls.push(k);
+        });
+        knobs.forEach(k=>{
+          const origDraw=k.draw.bind(k);
+          k.draw=(p)=>{k.label=k._labelFn();origDraw(p);};
+        });
+
+        // Sliders: mode btns | 3 boosts | scale
+        const slMargin = Math.floor(cW * 0.03);
+        const slGap = Math.floor(cW * 0.02);
+        const mbw = Math.floor(cW * 0.13);  // width for 2×2 button grid
+        const sw = Math.floor((cW - slMargin - mbw - slGap - slMargin - 3*slGap) / 4);
+        const slx0 = slMargin + mbw + slGap + sw/2;              // first boost slider centre
+
+        const boostFn = (ax) => (d) => { const f=[boost,boostX,boostLX,boostRX][mode]; ψ=mkid(f(d,ax,ψ(-1))); };
+        const bLabels=()=>[
+          ['γ₁₀',      'γ₂₀',      'γ₃₀'     ],
+          ['iγ₂₃',     'iγ₃₁',     'iγ₁₂'    ],
+          ['γ₁₀+iγ₂₃', 'γ₂₀+iγ₃₁', 'γ₃₀+iγ₁₂'],
+          ['γ₁₀-iγ₂₃', 'γ₂₀-iγ₃₁', 'γ₃₀-iγ₁₂'],
+        ][mode];
+        [{color:COL1,ax:ρ1},{color:COL2,ax:ρ2},{color:COL3,ax:ρ3}
+        ].forEach(({color,ax},i)=>{
+          const sl=new Slider(slx0+i*(sw+slGap),sy,sw,sh,'',color,0.025,fmtRap,boostFn(ax));
+          sl._labelFn=()=>bLabels()[i];
+          const origDraw=sl.draw.bind(sl);
+          sl.draw=(p)=>{sl.label=sl._labelFn();origDraw(p);};
+          lorentzEls.push(sl);
+        });
+
+        // scale slider: relative drag in log space, s-curved via tanh so it saturates
+        // stores logScale as accumulator; each delta shifts it and applies ratio to ψ
+        let _scaleLog = 0;
+        const scurve = (x) => Math.exp(Math.tanh(x) * 3); // maps ℝ → (e^-3, e^3) ≈ (0.05, 20)
+        const sc=new Slider(slx0+3*(sw+slGap),sy,sw,sh,'scale',[180,180,180],0.008,
+          null,
+          (d)=>{
+            const prev=scurve(_scaleLog);
+            _scaleLog+=d;
+            const ratio=scurve(_scaleLog)/prev;
+            const psi=ψ(-1);
+            if(mode===2)      ψ=mkid([qscale(ratio,psi[0]), psi[1]]);
+            else if(mode===3) ψ=mkid([psi[0], qscale(ratio,psi[1])]);
+            else              ψ=mkid(sscale(ratio,psi));
+          });
+        lorentzEls.push(sc);
+
+        // mode buttons: 2×2 grid, each selects a mode independently
+        const bh = Math.floor(sh * 0.9), bw = Math.floor(mbw / 2) - 1;
+        const bgap = 2;
+        const bx0 = slMargin, by0 = sy - bh - bgap;
+        const modeBtns = [];
+        [['ℝ',0],['ℑ',1],['Left',2],['Right',3]].forEach(([label,m],i)=>{
+          const col = i%2, row = Math.floor(i/2);
+          const b = new Button(bx0+col*(bw+bgap), by0+row*(bh+bgap), bw, bh, label,
+            ()=>{ mode=m; modeBtns.forEach((b,j)=>b.active=(j===m)); },
+            {color:[200,200,100], toggle:false});
+          b.active = (m===mode);
+          modeBtns.push(b);
+          lorentzEls.push(b);
+        });
+      }
+
+      const lorentzDisp=makeDispatch(()=>lorentzEls);
+      const lorentzSketch=(p)=>{
+        p.setup=()=>{
+          p.pixelDensity(1);
+          const cW=window.innerWidth-PANEL_W;
+          const cnv=p.createCanvas(cW,CTRL_H);
+          cnv.parent('ui-host');
+          document.getElementById('ui-host').style.width=cW+'px';
+          document.getElementById('ui-host').style.height=CTRL_H+'px';
+          p.textFont('monospace');
+          buildLorentz(cW,CTRL_H);
+        };
+        p.windowResized=()=>{
+          const cW=window.innerWidth-PANEL_W;
+          document.getElementById('ui-host').style.width=cW+'px';
+          p.resizeCanvas(cW,CTRL_H);
+          buildLorentz(cW,CTRL_H);
+        };
+        p.draw=()=>{
+          p.clear();
+          p.noStroke();p.fill(0,0,0,180);p.rect(0,0,p.width,p.height);
+          for(const el of lorentzEls)el.draw(p);
+          if(window._sleepNow)p.noLoop();
+        };
+        p.mousePressed=()=>lorentzDisp.press(p.mouseX,p.mouseY,p.millis());
+        p.mouseDragged=()=>lorentzDisp.move(p.mouseX,p.mouseY);
+        p.mouseReleased=()=>lorentzDisp.release();
+      };
+
+      // ══════════════════════════════════════════════════════════════════════
+      // ── Component controls (top of spinor panel) ──────────────────────────
+      // ══════════════════════════════════════════════════════════════════════
+      let compEls=[];
+
+      function buildComp(cW,cH){
+        compEls=[];
+        const labels=['L↑','L↓','R↑','R↓'];
+        const rowH=cH/4;
+
+        // Knob radius: row height drives size, keeping 40px below for label+value
+        const kr = Math.floor((rowH - 44) * 0.38);
+        // Knob vertical centre: kr from top + small top margin
+        const kcy_off = kr + 16;
+
+        // Right panel: two knob columns with equal gap on all three sides (between them,
+        // to the right edge, and to the slider).  gap = kr keeps things airy but not wasteful.
+        const g = kr;
+        const mixCX = cW - g - kr;   // right column: ρ₂ (bottom) and φ (top)
+        const knCX  = mixCX - g - 2*kr;  // left column: per-component phase
+
+        // Slider fills the remaining left area
+        const slH = Math.max(20, Math.floor(rowH * 0.20));
+        const slRight = knCX - kr - g;      // same gap between slider and left knob
+        const slW = Math.floor(slRight * 0.88);
+        const slCX = Math.floor(slRight / 2);
+
+        const fmtPolar=(c)=>{
+          const mag=Math.sqrt(c.r*c.r+c.i*c.i);
+          const deg=(Math.atan2(c.i,c.r)*360/Math.PI).toFixed(0);
+          return `${mag.toFixed(2)}∠${deg}°`;
+        };
+
+        for(let i=0;i<4;i++){
+          const col=compColors[i];
+          const rowTop=rowH*i;
+          const cy=rowTop+kcy_off;
+          const side=i>>1;  // 0=L, 1=R
+          const isUp=!(i&1);
+
+          compEls.push(new Slider(slCX, cy, slW, slH, labels[i], col, 0.015, fmtRap,
+            (d)=>{
+              const psi=ψ(-1),c=getComp(psi,i);
+              const mag=Math.sqrt(c.r*c.r+c.i*c.i);
+              const newMag=Math.max(0,mag+d);
+              const s=mag>1e-8?newMag/mag:0;
+              ψ=mkid(setComp(psi,i,{r:c.r*s,i:c.i*s}));
+            }));
+
+          const kn=new Knob(knCX, cy, kr, '', col,
+            ()=>fmtPolar(getComp(ψ(-1),i)),
+            (d)=>{
+              const psi=ψ(-1);
+              const q=psi[side];
+              const rotated=isUp ? qspinPhaseUp(q,d/2) : qspinPhaseDown(q,d/2);
+              const newPsi=[...psi]; newPsi[side]=rotated;
+              ψ=mkid(newPsi);
+            });
+          kn.getValue=()=>getComp(ψ(-1),i);
+          compEls.push(kn);
+
+          // 2×2 right grid: φ (top-right) and ρ₂ (bottom-right), one per chirality pair
+          if(isUp){
+            const downCY = rowTop + rowH + kcy_off;  // ↓ row knob Y
+            const pk=new Knob(mixCX, cy, kr, 'φ', col, null,
+              (d)=>{
+                const psi=ψ(-1);
+                const newPsi=[...psi];
+                newPsi[side]=qspinPhase(d/2, psi[side]);
+                ψ=mkid(newPsi);
+              });
+            compEls.push(pk);
+            const mk=new Knob(mixCX, downCY, kr, '↕', col, null,
+              (d)=>{
+                const psi=ψ(-1);
+                const newPsi=[...psi];
+                newPsi[side]=qspin3R(-d/2, psi[side], ρ2);
+                ψ=mkid(newPsi);
+              });
+            compEls.push(mk);
+          }
+        }
+      }
+
+      const compDisp=makeDispatch(()=>compEls);
+      const compSketch=(p)=>{
+        const ROW_H=110, N_ROWS=4;
+        const cH=ROW_H*N_ROWS;
+        p.setup=()=>{
+          p.pixelDensity(1);
+          const cW=PANEL_W;
+          const cnv=p.createCanvas(cW,cH);
+          cnv.parent('comp-host');
+          p.textFont('monospace');
+          buildComp(cW,cH);
+        };
+        p.windowResized=()=>{buildComp(PANEL_W,cH);p.resizeCanvas(PANEL_W,cH);};
+        p.draw=()=>{
+          p.clear();
+          p.noStroke();p.fill(0,0,0,120);p.rect(0,0,p.width,p.height);
+          p.stroke(255,255,255,15);p.strokeWeight(1);
+          for(let i=1;i<N_ROWS;i++)p.line(0,i*ROW_H,p.width,i*ROW_H);
+          for(const el of compEls)el.draw(p);
+          if(window._sleepNow)p.noLoop();
+        };
+        p.mousePressed=()=>compDisp.press(p.mouseX,p.mouseY,p.millis());
+        p.mouseDragged=()=>compDisp.move(p.mouseX,p.mouseY);
+        p.mouseReleased=()=>compDisp.release();
+      };
+
+      // ══════════════════════════════════════════════════════════════════════
+      // ── Buttons (bottom of spinor panel) ──────────────────────════════════
+      // ══════════════════════════════════════════════════════════════════════
+      let btnEls=[], projGroup=[], sigBtn;
+
+      const _nonzero = (p) => qnormsq(p[0])+qnormsq(p[1]) > 1e-8;
+      const nonzeroψ       = () => _nonzero(ψ(-1)) ? ψ(-1) : snormalized([quat(1),quat(0)]);
+      const nonzeroψChiralL = () => _nonzero(ψ(-1)) ? ψ(-1) : [quat(1),quat(0)];
+      const nonzeroψChiralR = () => _nonzero(ψ(-1)) ? ψ(-1) : [quat(0),quat(1)];
+
+      function buildBtns(cW,cH){
+        btnEls=[];projGroup=[];
+        const gap=4, cols=4;
+        const bw=Math.floor((cW-gap*(cols+1))/cols);
+        const bh=Math.floor((cH-gap*7)/6);
+
+        const gammaCol=[255,210,80],cptCol=[255,140,200],eigCol=[140,200,255];
+        let sig=false;
+        const mp =()=>!sig?mirrorP13(ψ(-1)):mirrorP31(ψ(-1));
+        const ms =(q)=>!sig?mirrorSpace13(ψ(-1),q):mirrorSpace31(ψ(-1),q);
+        const mct=()=>!sig?mirrorCT(ψ(-1)):mirrorSpace31(mirrorSpace31(mirrorSpace31(ψ(-1),ρ3),ρ2),ρ1);
+
+        const defs=[
+          // row 0 — γ matrices
+          {l:'γ₀',col:gammaCol,f:()=>{ψ=mkid(mp());}},
+          {l:'γ₁',col:COL1,    f:()=>{ψ=mkid(ms(ρ1));}},
+          {l:'γ₂',col:COL2,    f:()=>{ψ=mkid(ms(ρ2));}},
+          {l:'γ₃',col:COL3,    f:()=>{ψ=mkid(ms(ρ3));}},
+          // row 1 — discrete symmetries
+          {l:'P',  col:cptCol,f:()=>{ψ=mkid(mirrorP13(ψ(-1)));}},
+          {l:'C',  col:cptCol,f:()=>{ψ=mkid(Cconj(ψ(-1)));}},
+          {l:'T',  col:cptCol,f:()=>{ψ=mkid(mct());}},
+          {l:'CPT',col:cptCol,f:()=>{ψ=mkid(Cconj(mirrorP13(mct())));}},
+          // row 2 — more symmetries + sig
+          {l:'CP', col:cptCol,f:()=>{ψ=mkid(Cconj(mirrorP13(ψ(-1))));}},
+          {l:'CT', col:cptCol,f:()=>{ψ=mkid(Cconj(mct()));}},
+          {l:'PT', col:cptCol,f:()=>{ψ=mkid(mirrorP13(mct()));}},
+          {l:'(1,3)',col:[160,160,160],f:(btn)=>{sig=!sig;btn.label=sig?'(3,1)':'(1,3)';}},
+          // row 3 — eigenstates
+          {l:'Dirac+',  col:eigCol,eig:true,idx:0,f:()=>lerpAnim(makeDirac(nonzeroψ(),+1))},
+          {l:'Dirac−',  col:eigCol,eig:true,idx:1,f:()=>lerpAnim(makeDirac(nonzeroψ(),-1))},
+          {l:'Weyl L',col:eigCol,eig:true,idx:2,f:()=>lerpAnim(makeWeyl(nonzeroψChiralL(),+1))},
+          {l:'Weyl R',col:eigCol,eig:true,idx:3,f:()=>lerpAnim(makeWeyl(nonzeroψChiralR(),-1))},
+          // row 4 — more eigenstates
+          {l:'Maj+',    col:eigCol,eig:true,idx:4,f:()=>lerpAnim(makeMajorana(nonzeroψ(),+1))},
+          {l:'Maj−',    col:eigCol,eig:true,idx:5,f:()=>lerpAnim(makeMajorana(nonzeroψ(),-1))},
+          {l:'norm', col:[180,255,160],f:()=>{lerpAnim(snormalized(ψ(-1)));}},
+          {l:'reset',col:[160,160,160],f:()=>{lerpAnim(snormalized([quat(1),quat(1)]));}},
+        ];
+
+        defs.forEach((b,i)=>{
+          const col=i%cols, row=Math.floor(i/cols);
+          const x=gap+col*(bw+gap), y=gap+row*(bh+gap);
+          const onClick=b.eig
+            ?(btn)=>{projGroup.forEach(o=>o.active=false);btn.active=true;b.f(btn);}
+            :(btn)=>{b.f(btn);};
+          const btn=new Button(x,y,bw,bh,b.l,onClick,{color:b.col,active:b.eig&&b.idx===0});
+          if(b.eig)projGroup.push(btn);
+          btnEls.push(btn);
+        });
+      }
+
+      const btnDisp=makeDispatch(()=>btnEls);
+      const btnSketch=(p)=>{
+        const cW=PANEL_W, cols=4, rows=5;
+        const gap=4;
+        const bh=Math.floor((60*rows-gap*(rows+1))/rows)+gap; // ~60px per row
+        const cH=rows*(bh)+gap;
+        p.setup=()=>{
+          p.pixelDensity(1);
+          const cnv=p.createCanvas(cW,cH);
+          cnv.parent('btn-host');
+          p.textFont('monospace');
+          buildBtns(cW,cH);
+        };
+        p.windowResized=()=>{buildBtns(cW,cH);};
+        p.draw=()=>{
+          p.clear();
+          p.noStroke();p.fill(0,0,0,120);p.rect(0,0,p.width,p.height);
+          for(const el of btnEls)el.draw(p);
+          if(window._sleepNow)p.noLoop();
+        };
+        p.mousePressed=()=>btnDisp.press(p.mouseX,p.mouseY,p.millis());
+        p.mouseDragged=()=>btnDisp.move(p.mouseX,p.mouseY);
+        p.mouseReleased=()=>btnDisp.release();
+      };
+
+      // ── Text input wiring ─────────────────────────────────────────────────
+      function parseCpx(s){
+        s=s.trim().replace(/\s+/g,'');
+        if(!s)return null;
+        // pure real
+        if(!s.includes('i')){const v=parseFloat(s);return isNaN(v)?null:{r:v,i:0};}
+        // bare ±i
+        if(s==='i'||s==='+i')return{r:0,i:1};
+        if(s==='-i')return{r:0,i:-1};
+        // pure imaginary: e.g. "2i", "-3.5i", "+2i"
+        if(/^[+-]?[0-9]*\.?[0-9]+i$/.test(s))return{r:0,i:parseFloat(s)};
+        // a+bi / a-bi where b may be empty (meaning 1) or just sign
+        const m=s.match(/^([+-]?[0-9]*\.?[0-9]+)([+-][0-9]*\.?[0-9]*)i$/);
+        if(m){
+          const im=m[2]==='+' ? 1 : m[2]==='-' ? -1 : parseFloat(m[2]);
+          return{r:parseFloat(m[1]),i:im};
+        }
+        return null;
+      }
+      function readInputs(){
+        const get=(id)=>{const el=document.getElementById(id);return el?parseCpx(el.value):{r:0,i:0};};
+        const Lu=get('cpx_Lu'),Ld=get('cpx_Ld'),Ru=get('cpx_Ru'),Rd=get('cpx_Rd');
+        if(!Lu||!Ld||!Ru||!Rd)return null;
+        return[quat(Lu.r,-Ld.i,Ld.r,-Lu.i),quat(Ru.r,-Rd.i,Rd.r,-Ru.i)];
+      }
+      function commitInputs(){
+        const v=readInputs();
+        const ids=['cpx_Lu','cpx_Ld','cpx_Ru','cpx_Rd'];
+        if(v){ids.forEach(id=>document.getElementById(id)?.classList.remove('parse-error'));ψ=mkid(v);}
+        else ids.forEach(id=>{const el=document.getElementById(id);if(el&&parseCpx(el.value)===null)el.classList.add('parse-error');});
+      }
+      for(const id of['cpx_Lu','cpx_Ld','cpx_Ru','cpx_Rd']){
+        const el=document.getElementById(id);
+        if(!el)continue;
+        el.addEventListener('blur',()=>{commitInputs();if(window.wake)wake();});
+        el.addEventListener('keydown',(e)=>{if(e.key==='Enter'){commitInputs();el.blur();if(window.wake)wake();}});
+      }
+
+      // ── Loop management ──────────────────────────────────────────────────
+      const _p5s = [];
+      let _idleTimer = null;
+      const allP5s = () => {
+        if (window._globalP5 && !_p5s.includes(window._globalP5))
+          _p5s.push(window._globalP5);
+        return _p5s;
+      };
+      const sleepAll = () => { window._sleepNow = true; };
+      window.wake = () => {
+        window._sleepNow = false;
+        allP5s().forEach(p => p.loop());
+        if (window.loop) window.loop();
+        clearTimeout(_idleTimer);
+        _idleTimer = setTimeout(sleepAll, 2000);
+      };
+      // sleep after initial render
+      setTimeout(sleepAll, 500);
+
+      // ── Launch ────────────────────────────────────────────────────────────
+      _p5s.push(new p5(lorentzSketch));
+      _p5s.push(new p5(compSketch));
+      _p5s.push(new p5(btnSketch));
+
+    })();
+    </script>
+  </body>
+</html>
