@@ -1,10 +1,10 @@
 # Dirac Spinors — Interactive Visualization
 
-**[Live demo →](https://aap.github.io/spinor-hands)**
+**[Live demo →](https://aap.github.io/dirac-toy)**
 
 A hands-on visualization of a Dirac spinor as two quaternion-valued Weyl spinors, rendered in 3D with a Lorentz group control panel.
 
-![screenshot placeholder](screenshot.png)
+![screenshot](spinortoy.png)
 
 ---
 
