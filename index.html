@@ -399,7 +399,7 @@
         const bgap = 2;
         const bx0 = slMargin, by0 = sy - bh - bgap;
         const modeBtns = [];
-        [['ℝ',0],['ℑ',1],['Left',2],['Right',3]].forEach(([label,m],i)=>{
+        [['ℝ',0],['𝕀',1],['Left',2],['Right',3]].forEach(([label,m],i)=>{
           const col = i%2, row = Math.floor(i/2);
           const b = new Button(bx0+col*(bw+bgap), by0+row*(bh+bgap), bw, bh, label,
             ()=>{ mode=m; modeBtns.forEach((b,j)=>b.active=(j===m)); },
@@ -581,12 +581,12 @@
           {l:'P',  col:cptCol,f:()=>{ψ=mkid(mirrorP13(ψ(-1)));}},
           {l:'C',  col:cptCol,f:()=>{ψ=mkid(Cconj(ψ(-1)));}},
           {l:'T',  col:cptCol,f:()=>{ψ=mkid(mct());}},
-          {l:'CPT',col:cptCol,f:()=>{ψ=mkid(Cconj(mirrorP13(mct())));}},
+          {l:'(1,3)',col:[160,160,160],f:(btn)=>{sig=!sig;btn.label=sig?'(3,1)':'(1,3)';}},
           // row 2 — more symmetries + sig
           {l:'CP', col:cptCol,f:()=>{ψ=mkid(Cconj(mirrorP13(ψ(-1))));}},
           {l:'CT', col:cptCol,f:()=>{ψ=mkid(Cconj(mct()));}},
           {l:'PT', col:cptCol,f:()=>{ψ=mkid(mirrorP13(mct()));}},
-          {l:'(1,3)',col:[160,160,160],f:(btn)=>{sig=!sig;btn.label=sig?'(3,1)':'(1,3)';}},
+          {l:'CPT',col:cptCol,f:()=>{ψ=mkid(Cconj(mirrorP13(mct())));}},
           // row 3 — eigenstates
           {l:'Dirac+',  col:eigCol,eig:true,idx:0,f:()=>lerpAnim(makeDirac(nonzeroψ(),+1))},
           {l:'Dirac−',  col:eigCol,eig:true,idx:1,f:()=>lerpAnim(makeDirac(nonzeroψ(),-1))},

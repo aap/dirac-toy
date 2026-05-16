@@ -13,13 +13,29 @@ A hands-on visualization of a Dirac spinor as two Weyl spinors, rendered in 3D w
 In 1928 Paul A.M. Dirac discovered that to describe matter both quantum mechanically *and* relativistically
 one needs a supposedly mysterious new thing called a Spinor, made up of four complex numbers.
 
-These are usually considered hard or impossible to understand let alone visualize,
-and in any case they're treated as more of a geometric obscurity rather than
-a very simple building block with which to understand geometry.
+Even if, as Michael Atiyah said, "their algebra is formally understood",
+these are usually considered hard or impossible to understand let alone visualize.
+And in any case they're treated as more of a geometric obscurity rather than
+the basic elements from which to understand geometry.
 
-One example of this perspective is Richard Behiel's
+For this perspective see Michael Atiyah's talk [What is a Spinor?](https://www.youtube.com/watch?v=SBdW978Ii_E)
+and Richard Behiel's
 [The Mystery of Spinors](https://www.youtube.com/watch?v=b7OIbMCIfs4).
-For a very algebraic approach see eigenchris' [Spinors for Beginners](https://www.youtube.com/playlist?list=PLJHszsWbB6hoOo_wMb0b6T44KM_ABZtBs)
+For a very algebraic approach see [Spinors for Beginners](https://www.youtube.com/playlist?list=PLJHszsWbB6hoOo_wMb0b6T44KM_ABZtBs) by eigenchris.
+
+My take is different:
+I claim that Spinors are indeed not hard to intuit about at all.
+Two hands are all that is necessary and most people have two hands
+and use them in all sorts of ways every day.
+It seems strange that such an obvious thing should be mysterious.
+
+The goal of this p5.js sketch is to demonstrate this.
+Any arbitrary spinor (currently limited to the Chiral/Weyl representation!)
+can be put into the coordinates in the upper right
+and played with using the various controls.
+If you have a big enough touchscreen I recommend using it.
+
+### Spacetime and Spinors
 
 The symmetries given to us by Special Relativity are the continuous
 transformations in one dimension of Time and three of Space,
@@ -28,21 +44,118 @@ To see what this group does we need it to act on something that we can visualize
 
 4-vectors (and more general tensors) are a well known possibility,
 but it turns out that there is always a pair of transformations which
-act identically on the vector.
-And in any case it is very hard to visualize a 4D vector.
+act identically on the vector,
+so we can't tell them apart if we only look at vectors.
+And in any case it's hard to visualize a 4D vector.
 
 Spinors are the more elementary thing that the Lorentz-group acts on,
 and they are easier to picture too!
 A full Dirac spinor can be split up into a Left- and a Right-handed Weyl spinor,
 where each spinor can be pictured as exactly that:
 a left or a right hand, attached to some point with an arm.
+
 The continuous symmetries keep left and right separate,
-the 1+3 mirrors (γ₀, γ₁, γ₂, γ₃) of spacetime generate them as compositions
-of an even number of reflections.
+the 1+3 mirrors (γ₀, γ₁, γ₂, γ₃) of spacetime exchange left and right hands,
+and generate the continuous symmetries as compositions of an even number of such mirrors:
+Reflecting a left hand twice gives you back a left hand,
+reflecting a right hand twice gives you back a right hand.
 
---- TODO: explain more
+### Hands on a Bloch sphere
 
-The phase dials in the right panel show each of the four complex components (L↑, L↓, R↑, R↓) as a filled arc: radius = amplitude, swept angle = phase argument. Clockwise = negative phase, counterclockwise = positive.
+We can imagine two hands, palms on a plasma sphere.
+Each palm has a plasma beam connecting it to the center of the sphere.
+
+In this setup the plasma sphere represents the so called Bloch sphere.
+The hand on the sphere represents a quaternionic spinor under Spin(3)
+(same as a 2-state quantum state or a qubit),
+and the plasma beam that points from the center of the sphere to the palm
+represents what is sometimes called the spin vector.
+The spin vector does not change when one rotates just the palm of the hand,
+but it does change as the hand moves around on the sphere.
+As opposed to the hand transforming under Spin(3), the plasma beam transforms under SO(3).
+The extra 720° degree of freedom that a hand gives us
+shows up as a U(1) fiber in the [Hopf Fibration](https://arxiv.org/abs/2212.01642).
+
+This is a very useful picture to have in mind.
+
+### 4D Euclidean transformations
+
+Rotating the left and right hand around fully independently on the sphere
+gives us the rotations of 4D Euclidean space, Spin(4) ~= Spin(3) x Spin(3).
+In the UI you can play with Spin(4) transformations
+by using the bottom left three dials in any of the four modes.
+
+### 3+1D Minkowski transformations
+
+In a universe with causality it would be strange to be able to rotate
+the future into the past and vice versa.
+Instead the future should remain future-like and the past should remain past-like.
+In this space we still have the familiar rotations in 3D space that rotate both hands the same,
+the left three dials in "Real"-mode.
+
+But instead of the other set of opposite-chirality rotations
+we now get a set of boosts that keep the future and past intact.
+The boosts act mathematically the opposite on the left and right hand,
+but geometrically consistently, as should be clear from playing around with the xyz
+sliders in "Real"-mode.
+
+
+### Discrete symmetries
+
+#### Spacetime mirrors
+
+The continuous Spin group is generated by 4 discrete reflections.
+Familiar mirrors have the property that reflecting in them twice should do nothing,
+i.e. γ² = 1.
+If we only consider directions/vector, γ² = -1 is another valid
+choice because it transforms under the single-cover and can't tell
+apart transformations 1 and -1.
+On spinors we can tell the two apart.
+
+A geometrically very pleasing set of 4 mirrors has α²\_i = +1 for i ∈ [1,2,3,4],
+just like Dirac described in his famous Electron-paper from 1928.
+These (actually his γ's with the same ++++ signature, and in a different basis) can be taken to be
+the familiar xyz mirrors together with a parity mirror that mirrors
+xyz at the same time.
+Not as a point-reflection composed of three separate mirrors -
+which would square to -1 and commute with the xyz mirrors -
+but as an elementary action which squares to +1 and anti-commutes with the xyz mirrors.
+This is called 4D Euclidean space.
+
+To generate 3+1 Minkowski Spacetime we need 3 mirrors of one sign and 1 of the other,
+the choice doesn't matter for the Spin group, Spin(3,1) ~= Spin(1,3).
+These we call γ₁, γ₂, γ₃ for the xyz mirrors,
+and γ₀ for the parity mirror.
+They are related to the Euclidean mirrors by
+multiplication with i of either the parity mirror or the xyz mirrors.
+Thus the negated mirrors become mirrors composed with a 180° phase rotation.
+
+You can flip between the two choices with the 3,1/1,3 button.
+See below for the matrix reps.
+
+For a very algebraic approach to this algebra
+see [the Wikipedia article](https://en.wikipedia.org/wiki/Gamma_matrices).
+For a more geometric but rather vectorial take
+see David Hestenes' [Spacetime algebra](https://en.wikipedia.org/wiki/Spacetime_algebra).
+
+#### CPT
+
+Three symmetries of the Dirac equation are Charge conjugation, Parity and Time reversal, C, P, T.
+
+In the 1,3 Chiral representation we're using these can be expressed most easily as:
+
+```
+P   = Iγ₁₂₃   =  γ₀             I = γ₀₁₂₃
+CT  = Iγ₀     = -γ₁₂₃
+C   = iγ₂*
+```
+where `*` means complex conjugation to the right.
+These three generate yet another clifford algebra Cl(3,0)
+with T, CP and CPT as the "bivectors" (quaternionic)
+and PT as the "trivector" (complex).
+
+See also Garrett Lisi's [C, P, T, and Triality](https://arxiv.org/abs/2407.02497)
+and the [CPT-symmetric Universe](https://arxiv.org/abs/1803.08928).
 
 ## Controls
 
@@ -50,43 +163,44 @@ The phase dials in the right panel show each of the four complex components (L�
 - **Drag** — orbit camera
 - **Scroll** — zoom
 
-### Lorentz strip (bottom)
+### Lorentz transformations (bottom)
 
-Four mode buttons select which Lorentz action the knobs apply:
+Four mode buttons select which Lorentz action the dials apply:
 
 | Mode | Action |
 |------|--------|
 | **ℝ** | Real Spin(1,3) |
-| **ℑ** | Imaginary Spin(1,3) |
+| **𝕀** | Imaginary Spin(1,3) |
 | **Left** | Chiral left — acts on ψ_L only |
 | **Right** | Chiral right — acts on ψ_R only |
 
 **Dials (RGB):** three spatial rotation axes (red/green/blue = x/y/z)  
-**Dials (YCM):** i phase rotation, γ₀₁₂₃ axial rotation, local up/down ↕ rotation (yellow/cyan/magenta)  
-In Left/Right mode these become right-multiplied (= local!) ρ₃, ρ₁, ρ₂ rotations on the active hand.
-
+**Dials (YCM):** i phase rotation, γ₀₁₂₃ axial rotation, local up/down ↕ rotation (yellow/cyan/magenta). In Left/Right mode these become right-multiplied (= local!) ρ₃, ρ₁, ρ₂ rotations on the active hand.  
 **Sliders:** three spatial boost axes + scale/weight
 
 ### Component panel (right)
 
 Four rows: L↑, L↓, R↑, R↓.  
-- **Amplitude slider** (left) — sets the magnitude of that component  
-- **Phase dial** (middle-left) — rotates the phase of that component  
-- **φ knob** (top-right per chirality pair) — overall phase of that hand  
-- **ρ₂ knob** (bottom-right per chirality pair) — rotates between up and down locally
+- **Amplitude slider** — sets the magnitude of that component  
+- **Phase dial** — rotates the phase of that component  
+
+Per chirality:
+- **φ dial** — overall phase of that hand  
+- **↕ dial** — rotates between up and down locally (ρ₂ from the right)
 
 ### Discrete symmetries
 
-CLAUDE: explain that γ's are reflections in space and parity.
-two ways to do that.
-
-CLAUDE: CPT are symmetries of the dirac equation. see how they act on spinors here
+- **γ buttons** — apply γ₀-γ₃ mirrors to the spinor-pair
+- **1,3/3,1 button** — flip signature of the γ mirrors
+- **CPT buttons**  — apply CPT symmetries to the spinor-pair
 
 ### Eigenstate buttons
-- **Dirac+/−** — project onto ±1 eigenstates of γ⁰ (particle/antiparticle in the Dirac sense)
+- **Dirac+/−** — project onto ±1 eigenstates of γ₀ (particle/antiparticle in the Dirac sense)
 - **Majorana+/−** — project onto ±1 eigenstates of charge conjugation C
 - **Weyl L/R** — project onto pure left- or right-handed chirality eigenstates
-- **Reset** — restore default (equal left+right)
+- **reset** — restore default (Dirac +)
+
+- **norm** — normalize spinor
 
 The spinor readout at the top of the right panel shows each component in the form `a+bi`.
 
@@ -94,28 +208,69 @@ The spinor readout at the top of the right panel shows each component in the for
 
 ## Math
 
+### Implementation
+
 The math could be simplified somewhat by just using matrices,
 everything is done purely in terms of quaternions.
+See the following for how this map to conventional language.
 
-The spinor is `ψ = [ψ_L, ψ_R]` where each is a quaternion treated as a Weyl spinor.
-The familiar complex coefficients are extracted as follows:
+The visualization is done with dual quaternions.
+
+### Representations
+
+NB:
+* empty matrix entries mean 0.
+* the conventional quaternionic units i,j,k are called ρ₁, ρ₂, ρ₃ here ("rhotations")
+
+We have the following mapping between a quaternionic spinor
+and a column of two complex numbers:
 
 ```
-up(q)   = (q.w, −q.z)   — a complex number
-down(q) = (q.y, −q.x)
+a + dρ₁ + cρ₂ + bρ₃   ~=    (a + bρ₃) +  ~= [ a - bi ] = [ ψ↑ ]
+                          ρ₂(c + dρ₃)       [ c - di ]   [ ψ↓ ]
 ```
 
-Lorentz group action in this representation:
+In turning quaternion products Rψ and ψρ₃ into linear maps
+on a 2C-spinor ψ we find the following matrices by using the above spinor basis:
 
 ```
-spin3(θ, n̂, ψ)  = [R·ψ_L,  R·ψ_R]        R = exp(θ·n̂)  ∈ Spin(3)
-boost(θ, n̂, ψ)  = [cosh(θ)·ψ_L + sinh(θ)·n̂·ψ_L·(−ρ₃),
-                    cosh(θ)·ψ_R + sinh(θ)·n̂·ψ_R·ρ₃]
+ ρ₁| ~= [     -i ] = -iσ₁    ρ₂| ~= [    -1 ] = -iσ₂    ρ₃| ~= [ -i    ] = -iσ₃
+        [ -i     ]                  [ 1     ]                  [     i ]
+
+-|ρ₃ ~= [  i     ] = i
+        [      i ]
 ```
 
-where quaternion multiplication implements the Spin(3) group and ρ₁,ρ₂,ρ₃ are the standard quaternion basis elements.
+Therefore the full Pauli-algebra of 2x2 complex matrices can be written in terms
+of left and right quaternion multiplications.
+The quaternions from the left generate global xyz rotations,
+and i (-ρ₃ from the right) generates a local z rotation.
+
+Naturally ρ₁ and ρ₂ from the right generate local x and y rotations,
+but to represent these we would need a 4R spinor.
 
 ---
+
+The full spinor is `ψ = [ψ_L, ψ_R]` where each is a quaternion treated as a Weyl spinor.
+The familiar complex coefficients are extracted as follows:
+
+Cl(1,3) standard chiral representation:
+
+```
+1    = [ 1   ]              γ_0123 = [ i     ]
+       [   1 ]                       [    -i ]
+
+γ_0  = [   1 ]               γ_123 = [    -i ]
+       [ 1   ]                       [ i     ]
+
+γ_i  = [         iρ_i ]      γ_ij0 = [      ρ_k ]
+       [ -iρ_i        ]              [ ρ_k      ]
+
+γ_ij = [ ρ_k      ]           γ_i0 = [ iρ_i        ]
+       [      ρ_k ]                  [       -iρ_i ]
+```
+
+Lorentz Spin(1,3) group action is generated by γ\_ij and γ\_i0.
 
 ## Running locally
 
