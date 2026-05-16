@@ -99,9 +99,9 @@ function drawSpinor(from, to, hand=drawLHand, n=20) {
 }
 
 function drawWeylSpinor(from, d, ψ, hand, n=20) {
-  d *= sqrt(qinner(ψ, ψ));	// sqrt seems to be better
+  d *= qinner(ψ, ψ);
   if(d*d < 0.00000001) return;
-  let to = dmul(dquat(ψ), xlate(0,0,d));
+  let to = dmul(dquat(qnormalized(ψ)), xlate(0,0,d));
   drawSpinor(from, to, hand, n);
   return to;
 }
@@ -278,11 +278,24 @@ function fmtCpxVal(c) {
   return `${r}${c.i >= 0 ? '+' : '-'}${i}i`;
 }
 
+function spinVec(q) {
+  let d = qinner(q, q);
+  if(d*d < 0.00000001) return quat(0);
+  let tip = dsandwich(dmul(dquat(qnormalized(q)), xlate(0,0,d)), d1);
+  return tip.d;
+}
+
+function fmtVec3(v) {
+  const f = (x) => (x >= 0 ? ' ' : '') + x.toFixed(3);
+  const n = sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
+  return `${f(v.x)} ${f(v.y)} ${f(v.z)}  |${n.toFixed(3)}|`;
+}
+
 function updateHTML(t) {
   if (document.activeElement && document.activeElement.closest('#psi-readout')) return;
   let ψψ = ψ(t);
   let L = ψψ[0], R = ψψ[1];
-  const n = sqrt(qnormsq(L) + qnormsq(R));
+  const n = qnormsq(L) + qnormsq(R);
   const vals = { cpx_Lu: fmtCpxVal(up(L)), cpx_Ld: fmtCpxVal(down(L)),
                  cpx_Ru: fmtCpxVal(up(R)), cpx_Rd: fmtCpxVal(down(R)) };
   for (const [id, v] of Object.entries(vals)) {
@@ -290,5 +303,9 @@ function updateHTML(t) {
     if (el) el.value = v;
   }
   const norm = document.getElementById('psi_norm');
-  if (norm) norm.textContent = '|ψ| = ' + n.toFixed(4);
+  if (norm) norm.textContent = '|ψ_L| = ' + sqrt(qnormsq(L)).toFixed(4) + '   |ψ_R| = ' + sqrt(qnormsq(R)).toFixed(4)
+  const svL = document.getElementById('spin_vec_L');
+  if (svL) svL.textContent = 'SL ' + fmtVec3(spinVec(L));
+  const svR = document.getElementById('spin_vec_R');
+  if (svR) svR.textContent = 'SR ' + fmtVec3(spinVec(R));
 }

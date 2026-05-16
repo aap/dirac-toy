@@ -282,6 +282,12 @@ python3 -m http.server 8000
 
 The `hand.obj` model is loaded asynchronously; the canvas starts sleeping and wakes on interaction to conserve CPU.
 
+## TODO
+
+* rewrite everything to use three.js
+* make other [p5.js sketches](https://editor.p5js.org/aap/collections/t7qvosyi-) use the new UI
+* spinor fields? need to offload stuff to GPU for that
+
 ## Credits
 
-Math done by myself, UI and initial README by Claude Code.
+Math done by myself, UI by Claude Code.
